@@ -1,0 +1,142 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2639
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 Monaco;}
+{\colortbl;\red255\green255\blue255;\red155\green222\blue158;\red32\green32\blue32;\red219\green219\blue219;
+\red125\green140\blue147;\red237\green172\blue87;\red247\green89\blue114;}
+{\*\expandedcolortbl;;\csgenericrgb\c60784\c87059\c61961;\csgenericrgb\c12549\c12549\c12549;\csgenericrgb\c85882\c85882\c85882;
+\csgenericrgb\c49020\c54902\c57647;\csgenericrgb\c92941\c67451\c34118;\csgenericrgb\c96863\c34902\c44706;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab624
+\pard\pardeftab624\pardirnatural\partightenfactor0
+
+\f0\fs26 \cf2 \cb3 USE\cf4  sakila;\
+\
+\cf5 -- 1 Rank films by their length and create an output table that includes only the title, length, and rank columns. Filter out any rows with null or zero values in the length column.\
+\cf4 \
+\cf2 SELECT\cf4  title, length, RANK() OVER (\cf2 ORDER\cf4  \cf2 BY\cf4  length) \cf2 AS\cf4  ranks\
+\cf2 FROM\cf4  film\
+\cf2 WHERE\cf4  length \cf2 IS\cf4  \cf2 NOT\cf4  \cf2 NULL\cf4  \cf2 AND\cf4  length > \cf6 0\cf4 ;\
+\
+\cf5 -- 2 Rank films by length within the rating category and create an output table that includes only the title, length, rating and rank columns. Filter out any rows with null or zero values in the length column.\
+\cf2 SELECT\cf4  title, length, rating, RANK() OVER (PARTITION \cf2 BY\cf4  rating \cf2 ORDER\cf4  \cf2 BY\cf4  length) \cf2 AS\cf4  ranks\
+\cf2 FROM\cf4  film\
+\cf2 WHERE\cf4  length \cf2 IS\cf4  \cf2 NOT\cf4  \cf2 NULL\cf4  \cf2 AND\cf4  length > \cf6 0\cf4 ;\
+\
+\cf5 -- 3 Produce a list that shows, for each film in the Sakila database, the actor or actress who has acted in the most number of films, \
+-- as well as the total number of films in which they have acted.\
+\cf4 \
+\
+\cf5 -- Create a temporary table movie_counts that selects all the columns from the film_actor table and counts the number of films in which each actor has acted using the COUNT() window function with the OVER() clause that partitions by actor_id. The result is ordered by film_id.\
+-- This window function applies the COUNT() aggregate function to the film_id column, but instead of aggregating all the rows in the result set, it partitions the rows into separate groups based on the values in the actor_id column.\
+-- The PARTITION BY clause specifies the column that will be used to create the groups. In this case, it's actor_id.\
+-- So for each row in the result set, the COUNT() function will count the number of film_id values in the same partition as the current row's actor_id, and return that count as a new column called film_counts.\
+\cf4 \
+\cf2 DROP\cf4  TEMPORARY \cf2 TABLE\cf4  IF EXISTS movie_counts;\
+\cf2 CREATE\cf4  TEMPORARY \cf2 TABLE\cf4  movie_counts\
+\cf2 SELECT\cf4  \cf2 *\cf4 , COUNT(film_id) OVER (PARTITION \cf2 BY\cf4  actor_id) \cf2 AS\cf4  film_counts\
+\cf2 FROM\cf4  film_actor\
+\cf2 ORDER\cf4  \cf2 BY\cf4  film_id;\
+\
+\cf5 -- Create a CTE cte_film_counts_ranks\
+-- It defines a common table expression (CTE) named cte_film_counts_ranks that selects all columns from the movie_counts table and assigns a rank to each actor within each film based on their number of films they have acted in. The RANK() window function is used with the OVER() clause that partitions by film_id and orders by film_counts in descending order.\
+\cf4 \
+WITH cte_film_counts_ranks \cf2 AS\cf4 \
+(\
+\cf2 SELECT\cf4  \cf2 *\cf4 , RANK() OVER (PARTITION \cf2 BY\cf4  film_id \cf2 ORDER\cf4  \cf2 BY\cf4  film_counts \cf2 DESC\cf4 ) \cf2 AS\cf4  ranks_\
+\cf2 FROM\cf4  movie_counts\
+)\
+\
+\cf5 -- Finally, it selects the first_name and last_name columns from the actor table, the title column from the film table, and the film_counts column from the cte_film_counts_ranks CTE. \
+-- It joins the cte_film_counts_ranks CTE with the actor and film tables on their respective primary keys (actor_id and film_id). It also filters the result set to only include the rows with a rank of 1, which means only the actors who have acted in the most number of films for a given film will be included. The output of this query will show the actor or actress who has acted in the most number of films for each movie in the Sakila database, as well as the total number of films in which they have acted.\
+\cf2 SELECT\cf4  actor.first_name, actor.last_name, film.title, cte_film_counts_ranks.film_counts\
+\cf2 FROM\cf4  cte_film_counts_ranks\
+\cf2 JOIN\cf4  actor \cf2 ON\cf4  cte_film_counts_ranks.actor_id = actor.actor_id\
+\cf2 JOIN\cf4  film \cf2 ON\cf4  cte_film_counts_ranks.film_id = film.film_id\
+\cf2 WHERE\cf4  ranks_ = \cf6 1\cf4 ;\
+\
+\cf5 -- This exercise involves analyzing customer activity and retention in the Sakila database to gain insight into business performance. \
+-- By analyzing customer behavior over time, businesses can identify trends and make data-driven decisions to improve customer retention and increase revenue.\
+\cf4 \
+\cf5 -- The goal of this exercise is to perform a comprehensive analysis of customer activity and retention by conducting an analysis on the monthly percentage change\
+--  in the number of active customers and the number of retained customers.\
+-- Use the Sakila database and progressively build queries to achieve the desired outcome. \
+\cf4 \
+\cf5 -- Step 1. Retrieve the number of monthly active customers, i.e., the number of unique customers who rented a movie in each month.\
+-- Step 2. Retrieve the number of active users in the previous month.\
+-- Step 3. Calculate the percentage change in the number of active customers between the current and previous month.\
+-- Step 4. Calculate the number of retained customers every month, i.e., customers who rented movies in the current and previous months.\
+\cf4 \
+\
+\cf5 -- 1 Get number of monthly active customers.\
+\cf4 WITH customer_activity \cf2 AS\cf4  (\
+	\cf2 SELECT\cf4  customer_id, CONVERT(rental_date, DATE) \cf2 AS\cf4  activity_date,\
+		DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%M'\cf4 ) \cf2 AS\cf4  activity_month,\
+		DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%Y'\cf4 ) \cf2 AS\cf4  activity_year\
+	\cf2 FROM\cf4  rental\
+)\
+\cf2 SELECT\cf4  COUNT(DISTINCT customer_id) \cf2 AS\cf4  active_users, activity_year, activity_month\
+\cf2 FROM\cf4  customer_activity\
+\cf2 GROUP\cf4  \cf2 BY\cf4  activity_year, activity_month\
+\cf2 ORDER\cf4  \cf2 BY\cf4  activity_year, activity_month;\
+\
+\cf5 -- 2 Active users in the previous month.\
+\cf4 \
+WITH customer_activity \cf2 AS\cf4  (\
+	\cf2 SELECT\cf4  customer_id, CONVERT(rental_date, DATE) \cf2 AS\cf4  activity_date,\
+		DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%M'\cf4 ) \cf2 AS\cf4  activity_month,\
+		DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%Y'\cf4 ) \cf2 AS\cf4  activity_year\
+	\cf2 FROM\cf4  rental\
+),\
+monthly_active_users \cf2 AS\cf4  (\
+	\cf2 SELECT\cf4  COUNT(DISTINCT customer_id) \cf2 AS\cf4  active_users, activity_year, activity_month\
+	\cf2 FROM\cf4  customer_activity\
+	\cf2 GROUP\cf4  \cf2 BY\cf4  activity_year, activity_Month\
+	\cf2 ORDER\cf4  \cf2 BY\cf4  activity_year, activity_Month\
+),\
+cte_activity \cf2 AS\cf4  (\
+\cf2 SELECT\cf4  active_users, LAG(active_users,\cf6 1\cf4 ) OVER (PARTITION \cf2 BY\cf4  activity_year) \cf2 AS\cf4  last_month, activity_year, activity_month\
+\cf2 FROM\cf4  monthly_active_users\
+)\
+\cf2 SELECT\cf4  \cf2 *\cf4  \cf2 FROM\cf4  cte_activity\
+\cf2 WHERE\cf4  last_month \cf2 IS\cf4  \cf2 NOT\cf4  \cf2 NULL\cf4 ;\
+\
+\cf5 -- 3 Percentage change in the number of active customers.\
+\cf4 \
+WITH customer_activity \cf2 AS\cf4  (\
+	\cf2 SELECT\cf4  customer_id, CONVERT(rental_date, DATE) \cf2 AS\cf4  activity_date,\
+		DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%M'\cf4 ) \cf2 AS\cf4  activity_month,\
+		DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%Y'\cf4 ) \cf2 AS\cf4  activity_year\
+	\cf2 FROM\cf4  rental\
+),\
+monthly_active_users \cf2 AS\cf4  (\
+	\cf2 SELECT\cf4  COUNT(DISTINCT customer_id) \cf2 AS\cf4  active_users, activity_year, activity_month\
+	\cf2 FROM\cf4  customer_activity\
+	\cf2 GROUP\cf4  \cf2 BY\cf4  activity_year, activity_Month\
+	\cf2 ORDER\cf4  \cf2 BY\cf4  activity_year, activity_Month\
+),\
+cte_activity \cf2 AS\cf4  (\
+\cf2 SELECT\cf4  active_users, LAG(active_users,\cf6 1\cf4 ) OVER (PARTITION \cf2 BY\cf4  activity_year) \cf2 AS\cf4  last_month, activity_year, activity_month\
+\cf2 FROM\cf4  monthly_active_users\
+)\
+\
+\cf2 select\cf4  (active_users-last_month)/active_users\cf2 *\cf6 100\cf4  \cf2 as\cf4  percentage_change, activity_year, activity_month\
+\cf2 from\cf4  cte_activity\
+\cf2 where\cf4  last_month \cf2 is\cf4  \cf2 not\cf4  \cf2 null\cf4 ;\
+\
+\cf5 -- 4 Retained customers every month.\
+\cf4 WITH customer_activity \cf2 AS\cf4  (\
+	\cf2 SELECT\cf4  customer_id, CONVERT(rental_date, DATE) \cf2 AS\cf4  activity_date,\
+		DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%M'\cf4 ) \cf2 AS\cf4  activity_Month,\
+		DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%Y'\cf4 ) \cf2 AS\cf4  activity_year,\
+		CONVERT(DATE_FORMAT(CONVERT(rental_date,DATE), \cf7 '%m'\cf4 ), UNSIGNED) \cf2 AS\cf4  month_number\
+	\cf2 FROM\cf4  rental\
+),\
+distinct_users \cf2 AS\cf4  (\
+	\cf2 SELECT\cf4  DISTINCT customer_id , activity_month, activity_year, month_number\
+	\cf2 FROM\cf4  customer_activity\
+)\
+\
+\cf2 SELECT\cf4  COUNT(DISTINCT d1.customer_id) \cf2 AS\cf4  retained_customers, d1.activity_month, d1.activity_year\
+\cf2 FROM\cf4  distinct_users d1\
+\cf2 JOIN\cf4  distinct_users d2 \cf2 ON\cf4  d1.customer_id = d2.customer_id \cf2 AND\cf4  d1.month_number = d2.month_number + \cf6 1\cf4 \
+\cf2 GROUP\cf4  \cf2 BY\cf4  d1.activity_month, d1.activity_year, d1.month_number\
+\cf2 ORDER\cf4  \cf2 BY\cf4  d1.activity_year, d1.month_number;}
